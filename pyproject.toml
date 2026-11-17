@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multipanel"
+version = "0.1.0"
+description = "MultiPanel: a UI framework built with VTK (in-scene panels, widgets and charts)"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "LICENSES/*"]
+authors = [{ name = "Fraser Holloway" }]
+keywords = ["vtk", "ui", "widgets", "visualization", "charts", "gui"]
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "vtk>=9.3",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Visualization",
+  "Topic :: Software Development :: User Interfaces",
+]
+
+[project.urls]
+Homepage = "https://github.com/fraseyboo/MultiPanel"
+Repository = "https://github.com/fraseyboo/MultiPanel"
+Issues = "https://github.com/fraseyboo/MultiPanel/issues"
+
+[project.optional-dependencies]
+qt5 = ["PyQt5>=5.15"]
+qt6 = ["PyQt6>=6.6"]
+scientific = [
+  "matplotlib>=3.8",
+  "scikit-learn>=1.4",
+  "scipy>=1.11",
+  "tqdm>=4.66",
+]
+icons = [
+  "matplotlib>=3.8",
+  "opencv-python>=4.9",
+  "shapely>=2.1",
+  "svgpathtools>=1.6",
+  "triangle",
+  "tqdm>=4.66",
+]
+full = [
+  "matplotlib>=3.8",
+  "opencv-python>=4.9",
+  "scikit-learn>=1.4",
+  "scipy>=1.11",
+  "shapely>=2.1",
+  "svgpathtools>=1.6",
+  "triangle",
+  "tqdm>=4.66",
+]
+test = [
+  "matplotlib>=3.8",
+  "opencv-python>=4.9",
+  "pytest>=8.0",
+  "scikit-learn>=1.4",
+  "scipy>=1.11",
+  "shapely>=2.1",
+  "svgpathtools>=1.6",
+  "triangle",
+  "tqdm>=4.66",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+multipanel = ["icons/**/*", "fonts/**/*", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

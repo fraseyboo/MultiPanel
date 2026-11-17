@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# Screenshot test failures
+tests/screenshots/*.actual.png
