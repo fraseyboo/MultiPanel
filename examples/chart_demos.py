@@ -7,6 +7,12 @@ chart actors (``add_chart_actor``, ``DraggableChartInteractorStyle``,
 
 Requires the ``scientific`` extra. Run with ``python examples/chart_demos.py``.
 """
+import sys
+from pathlib import Path
+
+# Run from a clone without installing: use the package in ../src.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 import numpy as np
 import vtk
 

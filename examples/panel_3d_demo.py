@@ -2,6 +2,12 @@
 
 Run with ``python examples/panel_3d_demo.py``.
 """
+import sys
+from pathlib import Path
+
+# Run from a clone without installing: use the package in ../src.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 import vtk
 
 from multipanel import vtk_utils

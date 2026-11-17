@@ -86,7 +86,19 @@ def add_logo(
 
     logoWidget = vtk.vtkLogoWidget()
     logoWidget.SetInteractor(interactor)
+    # Explicit renderer: On() would otherwise pick the poked one.
+    logoWidget.SetDefaultRenderer(renderer)
+    logoWidget.SetCurrentRenderer(renderer)
     logoWidget.SetRepresentation(logoRepresentation)
+
+    def release(*_):
+        # Turn the widget off while its interactor still exists: tearing an
+        # enabled widget down after the interactor crashed (VTK 9.7).
+        if logoWidget.GetEnabled():
+            logoWidget.Off()
+
+    interactor.AddObserver("DeleteEvent", release)
+    interactor.GetRenderWindow().AddObserver("DeleteEvent", release)
 
     logoWidget.SetSelectable(interactable)
     logoWidget.SetProcessEvents(interactable)
@@ -108,6 +120,7 @@ def add_logo(
     renderer.widgets.update({"logo_widget": logoWidget})
 
     logoWidget.On()
+    return logoWidget
 
 
 def add_caption_widget(
