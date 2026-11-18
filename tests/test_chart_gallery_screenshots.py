@@ -95,7 +95,8 @@ def test_matches_reference_screenshot(theme, scene):
     if UPDATE:
         REFERENCES.mkdir(exist_ok=True)
         _write_png(shot(theme, scene)[0], reference)
-        VERSIONS.write_text(json.dumps({"vtk": vtk_version}, indent=2) + "\n")
+        VERSIONS.write_text(json.dumps(
+            {"vtk": vtk_version, "platform": sys.platform}, indent=2) + "\n")
         return
     recorded = (json.loads(VERSIONS.read_text()).get("vtk")
                 if VERSIONS.exists() else None)
@@ -104,6 +105,10 @@ def test_matches_reference_screenshot(theme, scene):
     if recorded != vtk_version:
         pytest.skip(f"references made with VTK {recorded}, "
                     f"running {vtk_version}")
+    platform = _recorded_platform()
+    if platform != sys.platform:
+        # Other renderers (e.g. Mesa on Linux CI) anti-alias differently.
+        pytest.skip(f"references made on {platform}, running {sys.platform}")
     expected, actual = _read_png(reference), shot(theme, scene)[1]
     assert expected.shape == actual.shape
     different = float((np.abs(expected - actual).max(axis=2)
@@ -132,3 +137,9 @@ def test_the_interactive_gallery_builds(tmp_path):
 
     views = [view for tile in gallery._tiles for view in views_in(tile)]
     assert len(views) == 14 and all(v.isVisible() for v in views)
+
+
+def _recorded_platform():
+    if VERSIONS.exists():
+        return json.loads(VERSIONS.read_text()).get("platform", "darwin")
+    return None

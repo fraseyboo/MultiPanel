@@ -1,4 +1,6 @@
-"""Reusable VTK 2D widgets and Qt theme integration."""
+"""MultiPanel: a UI framework built with VTK."""
+
+__version__ = "0.1.0"
 
 from .core import (
     FocusManager,
@@ -15,6 +17,7 @@ from .timer import Timer, VirtualClock
 from .units import Length, frac, px
 
 __all__ = [
+    "__version__",
     "FONT_ROOT",
     "FocusManager",
     "ICON_ROOT",

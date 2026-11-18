@@ -43,8 +43,8 @@ pipeline. It needs only VTK and NumPy, so the same UI runs in a plain
 
 ## Installation
 
-MultiPanel needs Python 3.10 or newer and VTK 9.3 or newer (it is tested with
-VTK 9.5 and 9.6).
+MultiPanel needs Python 3.10 or newer and VTK 9.4 or newer; it is tested with
+VTK 9.4, 9.5 and the latest release on Linux and macOS.
 
 ```bash
 python -m pip install "multipanel @ git+https://github.com/fraseyboo/MultiPanel"

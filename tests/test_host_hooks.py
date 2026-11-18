@@ -96,5 +96,4 @@ def test_add_logo_needs_an_existing_image():
 def test_only_licensed_image_folders_ship():
     icons = SRC / "multipanel" / "icons"
     folders = {path.name for path in icons.iterdir() if path.is_dir()}
-    assert folders <= {"png_icons", "svg_icons", "tintable", "vtk_icons",
-                       "old"}
+    assert folders <= {"png_icons", "svg_icons", "tintable", "vtk_icons"}

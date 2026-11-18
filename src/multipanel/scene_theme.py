@@ -67,11 +67,12 @@ _TEXTURE_SIZE = (256, 2048)      # (width, height) texels
 def dithered_gradient_texture(bottom, top, size=_TEXTURE_SIZE, seed=7):
     """Vertical gradient texture with triangular ±1 LSB dither.
 
-    VTK's two-colour background gradient is quantised to 8 bits per channel
-    on screen; across a whole window the dark gradient only spans ~20 levels,
-    so it bands visibly. Adding a little noise before quantising makes each
-    pixel land on one of the two nearest levels in the right proportion, so
-    the eye sees a smooth ramp.
+    The dark gradient spans only ~20 of the 256 levels per channel, so an
+    undithered gradient bands visibly. VTK (9.3 onwards) dithers its own
+    gradient background (``vtkRenderer.SetDitherGradient``, on by default),
+    which :func:`apply_scene_theme` now uses; this texture is the older
+    alternative (``dither="texture"``), kept for comparison and for
+    renderers without that option.
     """
     import numpy as np
     import vtk
@@ -103,13 +104,37 @@ def dithered_gradient_texture(bottom, top, size=_TEXTURE_SIZE, seed=7):
     return texture
 
 
+DITHER_MODES = ("vtk", "texture", "off")
+
+
+def background_dither_mode(dither=True):
+    """``"vtk"``, ``"texture"`` or ``"off"`` for :func:`apply_scene_theme`'s
+    ``dither`` argument. ``MULTIPANEL_BACKGROUND_DITHER`` overrides the
+    default (``True``, VTK's own dithering)."""
+    import os
+
+    if dither is True:
+        dither = os.environ.get("MULTIPANEL_BACKGROUND_DITHER", "vtk")
+    if dither is False or dither is None:
+        return "off"
+    mode = str(dither).strip().lower()
+    return mode if mode in DITHER_MODES else "vtk"
+
+
 def apply_scene_theme(renderer, dark: bool, accent: str, render: bool = True,
-                      dither: bool = True):
-    """Recolour the scene chrome of *renderer*; returns the palette used."""
+                      dither=True):
+    """Recolour the scene chrome of *renderer*; returns the palette used.
+
+    The background is a vertical gradient. ``dither`` removes its banding:
+    ``True``/``"vtk"`` uses VTK's dithered gradient, ``"texture"`` a
+    pre-dithered texture (:func:`dithered_gradient_texture`), and
+    ``False``/``"off"`` a plain gradient.
+    """
     palette = scene_palette(dark, accent)
     renderer.SetBackground(*palette["background_bottom"])
     renderer.SetBackground2(*palette["background_top"])
-    if dither:
+    mode = background_dither_mode(dither)
+    if mode == "texture":
         renderer.SetBackgroundTexture(dithered_gradient_texture(
             palette["background_bottom"], palette["background_top"]))
         renderer.GradientBackgroundOff()
@@ -117,6 +142,8 @@ def apply_scene_theme(renderer, dark: bool, accent: str, render: bool = True,
     else:
         renderer.TexturedBackgroundOff()
         renderer.GradientBackgroundOn()
+        if hasattr(renderer, "SetDitherGradient"):
+            renderer.SetDitherGradient(mode == "vtk")
 
     grid = getattr(renderer, "reference_grid_actors", None) or {}
     major = grid.get("major")

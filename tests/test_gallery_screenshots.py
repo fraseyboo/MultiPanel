@@ -137,7 +137,8 @@ def test_matches_reference_screenshot(theme, scene):
         writer.SetFileName(str(reference))
         writer.SetInputData(shot(theme, scene)[0])
         writer.Write()
-        VERSIONS.write_text(json.dumps({"vtk": vtk_version}, indent=2) + "\n")
+        VERSIONS.write_text(json.dumps(
+            {"vtk": vtk_version, "platform": sys.platform}, indent=2) + "\n")
         return
     recorded = _versions().get("vtk")
     if not reference.exists():
@@ -145,6 +146,10 @@ def test_matches_reference_screenshot(theme, scene):
     if recorded != vtk_version:
         pytest.skip(f"references made with VTK {recorded}, "
                     f"running {vtk_version}")
+    platform = _recorded_platform()
+    if platform != sys.platform:
+        # Other renderers (e.g. Mesa on Linux CI) anti-alias differently.
+        pytest.skip(f"references made on {platform}, running {sys.platform}")
     expected, actual = _read_png(reference), pixels(theme, scene)
     assert expected.shape == actual.shape
     delta = np.abs(expected - actual).max(axis=2)
@@ -157,3 +162,9 @@ def test_matches_reference_screenshot(theme, scene):
         writer.Write()
         pytest.fail(f"{different:.2%} of pixels differ from {reference.name}"
                     f" (written to {failed.name})")
+
+
+def _recorded_platform():
+    if VERSIONS.exists():
+        return json.loads(VERSIONS.read_text()).get("platform", "darwin")
+    return None

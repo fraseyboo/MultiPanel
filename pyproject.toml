@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "multipanel"
-version = "0.1.0"
+dynamic = ["version"]
 description = "MultiPanel: a UI framework built with VTK (in-scene panels, widgets and charts)"
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -14,7 +14,7 @@ keywords = ["vtk", "ui", "widgets", "visualization", "charts", "gui"]
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.26",
-  "vtk>=9.3",
+  "vtk>=9.4",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -71,6 +71,9 @@ test = [
   "triangle",
   "tqdm>=4.66",
 ]
+
+[tool.setuptools.dynamic]
+version = { attr = "multipanel.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

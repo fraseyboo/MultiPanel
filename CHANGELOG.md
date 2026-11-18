@@ -4,6 +4,21 @@ All notable changes to MultiPanel will be documented here.
 
 ## Unreleased
 
+## 0.1.0 (2026-11-18)
+
+First public release, as MultiPanel (formerly VTK-2D-UI).
+
+- Requires VTK 9.4 or newer (was 9.3): VTK 9.3's Python bindings cannot
+  pass non-ASCII key codes (`é`, `µ`), so hosts such as Qt could not
+  forward that typing. CI tests VTK 9.4, 9.5 and the latest release, on
+  Python 3.10 to 3.13, on Linux and macOS.
+- The scene background uses VTK's own dithered gradient
+  (`SetDitherGradient`) instead of a pre-dithered texture; the texture
+  remains as `apply_scene_theme(..., dither="texture")`, and
+  `MULTIPANEL_BACKGROUND_DITHER=vtk|texture|off` overrides the default.
+- `multipanel.__version__`; a `publish` workflow releases a version tag
+  to PyPI.
+- Removed the unused `icons/old` folder.
 - **Renamed from VTK-2D-UI to MultiPanel** (package `multipanel`,
   distribution `multipanel`), so the project is not mistaken for an
   official VTK project. `import vtk_2d_ui` still works through a
