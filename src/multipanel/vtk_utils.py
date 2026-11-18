@@ -2619,5 +2619,203 @@ def merge_bounds(bounds_list, buffer=0.1):
     
 
 
+_VOLUME_MAPPERS = {
+    "smart": vtk.vtkSmartVolumeMapper,
+    "GPU": vtk.vtkGPUVolumeRayCastMapper,
+    "CPU": vtk.vtkFixedPointVolumeRayCastMapper,
+    "openGL": vtk.vtkOpenGLGPUVolumeRayCastMapper,
+}
+_VOLUME_BLEND_MODES = {
+    "composite": "SetBlendModeToComposite",
+    "maximum": "SetBlendModeToMaximumIntensity",
+    "minimum": "SetBlendModeToMinimumIntensity",
+    "average": "SetBlendModeToAverageIntensity",
+    "Additive": "SetBlendModeToAdditive",
+    "iso": "SetBlendModeToIsoSurface",
+    "slice": "SetBlendModeToSlice",
+}
+
+
+def add_volume(volume, renderer=None, spacing=(1, 1, 1), c_range=None,
+               opacity_range=(0, 1), outline=False, colormap='viridis',
+               clip_to_range=False, shade=False, blend_mode='composite',
+               render_mode='smart', origin=(0, 0, 0), name='Field',
+               verbose=False, enabled=True):
+    """Volume-render a 3D numpy array (or ``vtkImageData``).
+
+    Colour and opacity ramp linearly over ``c_range`` (default ``0..nanmax``)
+    and ``opacity_range``; ``clip_to_range`` clips the values to ``c_range``
+    first (on a copy). ``render_mode`` picks the mapper (``smart``, ``GPU``,
+    ``CPU``, ``openGL``) and ``blend_mode`` its blending (``composite``,
+    ``maximum``, ``minimum``, ``average``, ``Additive``, ``iso``,
+    ``slice``). With ``outline`` a black bounding outline is also made.
+
+    Returns the ``vtkVolume`` (``[volume, outline_actor]`` with ``outline``)
+    when *renderer* is None; otherwise adds them to *renderer*.
+
+    The Box/Lasso reconstructions and the reconstruction refresh build their
+    Compton volumes with it.
+    """
+    if render_mode not in _VOLUME_MAPPERS:
+        raise ValueError(f"render_mode must be one of {sorted(_VOLUME_MAPPERS)}, got {render_mode!r}")
+    if blend_mode not in _VOLUME_BLEND_MODES:
+        raise ValueError(f"blend_mode must be one of {sorted(_VOLUME_BLEND_MODES)}, got {blend_mode!r}")
+
+    if isinstance(volume, vtk.vtkImageData):
+        image = volume
+        image.SetSpacing(spacing)
+        image.SetOrigin(origin)
+        if c_range is None:
+            c_range = (0, image.GetScalarRange()[1])
+    else:
+        volume = np.asarray(volume)
+        if clip_to_range and c_range is not None:
+            volume = np.clip(volume, c_range[0], c_range[1])
+        if c_range is None:
+            c_range = (0, np.nanmax(volume))
+        image = vtk.vtkImageData()
+        image.SetSpacing(spacing)
+        image.SetOrigin(origin)
+        image.SetDimensions(volume.shape[0], volume.shape[1], volume.shape[2])
+        image.GetPointData().SetScalars(numpy_support.numpy_to_vtk(volume.T.ravel(), deep=True))
+    logger.debug("add_volume %s: range %s", name, c_range)
+
+    opacity = vtk.vtkPiecewiseFunction()
+    opacity.AddPoint(c_range[0], opacity_range[0])
+    opacity.AddPoint(c_range[1], opacity_range[1])
+    colors = vtk.vtkColorTransferFunction()
+    for value, red, green, blue in colormap_utils.make_colormap(c_range=c_range, color=colormap)[:, :4]:
+        colors.AddRGBPoint(value, red, green, blue)
+
+    volume_property = vtk.vtkVolumeProperty()
+    volume_property.SetColor(colors)
+    volume_property.SetScalarOpacity(opacity)
+    volume_property.SetShade(bool(shade))
+    volume_property.SetInterpolationTypeToNearest()
+
+    mapper = _VOLUME_MAPPERS[render_mode]()
+    if render_mode == 'CPU':
+        mapper.AutoAdjustSampleDistancesOn()
+    getattr(mapper, _VOLUME_BLEND_MODES[blend_mode])()
+    mapper.SetInputData(image)
+
+    actor = vtk.vtkVolume()
+    actor.SetMapper(mapper)
+    actor.SetProperty(volume_property)
+    actor.SetObjectName(name)
+    actor.SetPickable(False)
+    actor.SetVisibility(bool(enabled))
+
+    outline_actor = None
+    if outline:
+        geometry = vtk.vtkImageDataGeometryFilter()
+        geometry.SetInputData(image)
+        outline_filter = vtk.vtkOutlineFilter()
+        outline_filter.SetInputConnection(geometry.GetOutputPort())
+        outline_mapper = vtk.vtkPolyDataMapper()
+        outline_mapper.SetInputConnection(outline_filter.GetOutputPort())
+        outline_actor = vtk.vtkActor()
+        outline_actor.GetProperty().SetColor(0, 0, 0)
+        outline_actor.SetMapper(outline_mapper)
+
+    if renderer is None:
+        return [actor, outline_actor] if outline else actor
+    renderer.AddVolume(actor)
+    if outline:
+        renderer.AddActor(outline_actor)
+    return None
+
+
+def load_gltf(filename, renderer=None, render_window=None, override_lighting=False,
+              opacity=1.0, specular=0.3, ambient=0.5, diffuse=0.5, specular_power=50.0,
+              scale=(1, 1, 1), translate=None, rotate=(0, 0, 0), name=None,
+              import_method='vtkGLTFImporter'):
+    """Load a glTF/GLB file.
+
+    ``import_method='vtkGLTFImporter'`` (needs *render_window*) imports the
+    whole scene into the window's first renderer and returns ``{name: actor}``
+    for the new, non-empty actors -- named ``name + index`` when *name* is
+    given -- with *opacity* (and, with ``override_lighting``, the lighting
+    values) applied and, when *translate* is given, a scale / X-Y-Z rotate /
+    translate transform. ``'vtkGLTFReader'`` merges the file into one actor,
+    returned, or added to *renderer* when one is given.
+
+    The radiation markers are loaded with it.
+    """
+    import_methods = ('vtkGLTFReader', 'vtkGLTFImporter')
+    if import_method not in import_methods:
+        raise ValueError(f'import_method must be one of {import_methods}, got {import_method!r}')
+    custom_name = name is not None
+    if name is None:
+        name = os.path.basename(filename)
+
+    if import_method == 'vtkGLTFImporter':
+        if render_window is None:
+            raise ValueError('render_window must be given when using vtkGLTFImporter')
+        logger.debug("Reading %s", filename)
+        existing = render_window.GetRenderers().GetFirstRenderer().GetActors()
+        existing_actors = [existing.GetItemAsObject(i) for i in range(existing.GetNumberOfItems())]
+
+        importer = vtk.vtkGLTFImporter()
+        importer.SetFileName(filename)
+        importer.SetRenderWindow(render_window)
+        importer.Update()
+
+        actors = importer.GetRenderer().GetActors()
+        actor_dict = dict()
+        index = 0
+        for i in range(actors.GetNumberOfItems()):
+            actor = actors.GetItemAsObject(i)
+            if actor is None or actor in existing_actors:
+                continue
+            actor.SetDragable(False)
+            actor.GetProperty().SetOpacity(opacity)
+            if override_lighting:
+                actor.GetProperty().SetSpecular(specular)
+                actor.GetProperty().SetSpecularPower(specular_power)
+                actor.GetProperty().SetAmbient(ambient)
+                actor.GetProperty().SetDiffuse(diffuse)
+                actor.GetProperty().SetInterpolationToGouraud()
+            if actor.GetMapper().GetInput().GetNumberOfPoints() == 0:
+                continue                     # empty node
+            if translate is not None:
+                transform = vtk.vtkTransform()
+                transform.PostMultiply()
+                transform.Scale(scale)
+                transform.RotateX(rotate[0])
+                transform.RotateY(rotate[1])
+                transform.RotateZ(rotate[2])
+                transform.Translate(translate)       # after the rotation
+                actor.SetUserTransform(transform)
+            if custom_name:
+                actor.SetObjectName(name + str(index))
+                actor_dict[name + str(index)] = actor
+            else:
+                actor_dict[filename + str(index)] = actor
+            index += 1
+        return actor_dict
+
+    reader = vtk.vtkGLTFReader()
+    reader.SetFileName(filename)
+    reader.Update()
+    geometry = vtk.vtkCompositeDataGeometryFilter()
+    geometry.SetInputConnection(reader.GetOutputPort())
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(geometry.GetOutputPort())
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    actor.GetProperty().SetOpacity(opacity)
+    actor.GetProperty().SetSpecular(specular)
+    actor.GetProperty().SetSpecularPower(80.0)
+    actor.GetProperty().SetAmbient(ambient)
+    actor.GetProperty().SetInterpolationToGouraud()
+    if custom_name:
+        actor.SetObjectName(name)
+    if renderer is None:
+        return actor
+    renderer.AddActor(actor)
+    return None
+
+
 # Re-exported for compatibility until 1.0; new code imports from radiation.
 from .radiation import add_GEANT4_tracks  # noqa: E402

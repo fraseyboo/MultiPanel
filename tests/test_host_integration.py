@@ -129,3 +129,85 @@ def test_plot_slices_callback_without_slicers_is_a_no_op(scene):
 
     ren, _window, iren = scene
     specialists.plot_slices_callback(_button(ren, iren), None, verbose=False)
+
+
+# -- vtk_utils.add_volume / load_gltf ------------------------------------------
+def test_add_volume_builds_a_named_volume():
+    pytest.importorskip("sklearn")
+    from multipanel import vtk_utils
+
+    values = np.random.default_rng(0).random((6, 5, 4))
+    volume = vtk_utils.add_volume(values, spacing=(1, 2, 3), origin=(1, 1, 1),
+                                  c_range=(0, 0.5), name='widgets/test_volume', enabled=False)
+    assert isinstance(volume, vtk.vtkVolume)
+    assert volume.GetObjectName() == 'widgets/test_volume'
+    assert not volume.GetVisibility()
+    image = volume.GetMapper().GetInput()
+    assert image.GetDimensions() == (6, 5, 4)
+    assert image.GetSpacing() == (1, 2, 3)
+    colors = volume.GetProperty().GetRGBTransferFunction()
+    assert colors.GetRange() == pytest.approx((0, 0.5))
+
+
+def test_add_volume_clips_a_copy_to_the_range():
+    pytest.importorskip("sklearn")
+    from multipanel import vtk_utils
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+
+    values = np.linspace(-1, 2, 27).reshape(3, 3, 3)
+    original = values.copy()
+    volume = vtk_utils.add_volume(values, c_range=(0, 1), clip_to_range=True)
+    scalars = vtk_to_numpy(volume.GetMapper().GetInput().GetPointData().GetScalars())
+    assert scalars.min() == 0 and scalars.max() == 1
+    np.testing.assert_array_equal(values, original)      # the caller's array is untouched
+
+
+def test_add_volume_rejects_unknown_modes():
+    pytest.importorskip("sklearn")
+    from multipanel import vtk_utils
+
+    with pytest.raises(ValueError):
+        vtk_utils.add_volume(np.ones((2, 2, 2)), render_mode='raytraced')
+    with pytest.raises(ValueError):
+        vtk_utils.add_volume(np.ones((2, 2, 2)), blend_mode='screen')
+
+
+@pytest.mark.parametrize("widget", ["LassoWidget", "BoxWidget"])
+def test_selection_widgets_build_reconstructed_volumes(widget):
+    # Box/Lasso reconstructions called vtk_utils.add_volume, which was missing.
+    pytest.importorskip("sklearn")
+    from multipanel import specialists
+
+    create = getattr(specialists, widget).create_new_volume
+    spacings, volume = create(None, (0, 1, 0, 2, 0, 3), np.ones((4, 4, 4)), name='widgets/region')
+    assert isinstance(volume, vtk.vtkVolume) and volume.GetObjectName() == 'widgets/region'
+    assert spacings == pytest.approx(np.array([1, 2, 3]) / 4, rel=1e-4)
+
+
+def test_load_gltf_reader_returns_one_actor(tmp_path):
+    pytest.importorskip("sklearn")
+    from multipanel import vtk_utils
+
+    source = vtk.vtkCubeSource()
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(source.GetOutputPort())
+    cube = vtk.vtkActor()
+    cube.SetMapper(mapper)
+    ren = vtk.vtkRenderer()
+    ren.AddActor(cube)
+    window = vtk.vtkRenderWindow()
+    window.SetOffScreenRendering(1)
+    window.AddRenderer(ren)
+    path = str(tmp_path / "cube.gltf")
+    exporter = vtk.vtkGLTFExporter()
+    exporter.SetRenderWindow(window)
+    exporter.SetFileName(path)
+    exporter.InlineDataOn()
+    exporter.Write()
+
+    actor = vtk_utils.load_gltf(path, name='marker', import_method='vtkGLTFReader')
+    assert isinstance(actor, vtk.vtkActor) and actor.GetObjectName() == 'marker'
+    actor.GetMapper().Update()
+    assert actor.GetMapper().GetInput().GetNumberOfPoints() > 0
+    with pytest.raises(ValueError):
+        vtk_utils.load_gltf(path, import_method='vtkGLTFImporter')    # needs a render window
