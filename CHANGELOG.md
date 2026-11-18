@@ -31,6 +31,9 @@ Fixes found while porting COMPTON to MultiPanel
   a hole, which dropped paths whose shapes were all drawn clockwise. The
   `catalog`, `contour`, `contour_enabled` and `slicer` icons are
   regenerated.
+- `full_spectrum.vtk` is rebuilt from its (newer) SVG, and `atom`,
+  `paint` and `slider_disabled_red` are pre-built instead of being
+  converted into the package directory on first use.
 
 ## 0.1.0 (2026-11-18)
 
