@@ -307,3 +307,77 @@ def test_vtk_utils_style_survives_gc(capfd):
     iren = _style_interactor(vtk_utils.MyInteractorStyle,
                              lambda iren, ren, window: (iren, ren.GetActiveCamera(), ren))
     _assert_style_survives_gc(iren, capfd)
+
+
+# -- SVG icon conversion: holes by nesting, not winding -------------------------
+def _square(x0, y0, size, clockwise=False):
+    corners = [(x0, y0), (x0 + size, y0), (x0 + size, y0 + size), (x0, y0 + size)]
+    if clockwise:
+        corners = corners[::-1]
+    return "M " + " L ".join(f"{x},{y}" for x, y in corners) + " Z"
+
+
+def _filled_area(tmp_path, *subpaths, extra_path=None, fill_rule=None):
+    pytest.importorskip("triangle")
+    pytest.importorskip("svgpathtools")
+    from multipanel.icon_converter import convert_svg_to_triangles
+
+    rule = f";fill-rule:{fill_rule}" if fill_rule else ""
+    paths = f'<path style="fill:#c160ff{rule}" d="{" ".join(subpaths)}"/>'
+    if extra_path:
+        paths += f'<path style="fill:#000000" d="{extra_path}"/>'
+    svg = tmp_path / "icon.svg"
+    svg.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+                   f'{paths}</svg>')
+    shapes = convert_svg_to_triangles(str(svg), plot=False, normalize=False)
+    purple = [s for s in shapes if tuple(np.round(s[2][:3], 2)) == (0.76, 0.38, 1.0)]
+    total = 0.0
+    for verts, tris, _color in purple:
+        u = verts[tris[:, 1]] - verts[tris[:, 0]]
+        w = verts[tris[:, 2]] - verts[tris[:, 0]]
+        total += 0.5 * np.abs(u[:, 0] * w[:, 1] - u[:, 1] * w[:, 0]).sum()
+    return total
+
+
+@pytest.mark.parametrize("clockwise", [False, True])
+def test_svg_separate_shapes_are_filled_whatever_their_winding(tmp_path, clockwise):
+    # Two separate shapes in one path, both drawn clockwise, were both taken
+    # for holes and the path was dropped (COMPTON's compton.svg lost its
+    # purple regions).
+    area = _filled_area(tmp_path, _square(5, 5, 30, clockwise), _square(50, 50, 40, clockwise),
+                        extra_path=_square(0, 0, 100))
+    assert area == pytest.approx(30 * 30 + 40 * 40, rel=1e-3)
+
+
+RING, HOLE = 60 * 60, 20 * 20
+
+
+@pytest.mark.parametrize("fill_rule", [None, "nonzero", "evenodd"])
+@pytest.mark.parametrize("outer_cw", [False, True])
+def test_svg_opposite_winding_inner_ring_is_a_hole(tmp_path, fill_rule, outer_cw):
+    area = _filled_area(tmp_path, _square(0, 0, 60, outer_cw), _square(20, 20, 20, not outer_cw),
+                        fill_rule=fill_rule)
+    assert area == pytest.approx(RING - HOLE, rel=1e-3)
+
+
+@pytest.mark.parametrize("fill_rule,expected", [(None, RING), ("nonzero", RING),
+                                                ("evenodd", RING - HOLE)])
+@pytest.mark.parametrize("clockwise", [False, True])
+def test_svg_same_winding_inner_ring_follows_the_fill_rule(tmp_path, fill_rule, expected, clockwise):
+    # SVG's default (nonzero) fills an inner boundary drawn the same way as
+    # its outer one; evenodd cuts it out.
+    area = _filled_area(tmp_path, _square(0, 0, 60, clockwise), _square(20, 20, 20, clockwise),
+                        fill_rule=fill_rule)
+    assert area == pytest.approx(expected, rel=1e-3)
+
+
+def test_svg_island_inside_a_hole_is_filled(tmp_path):
+    area = _filled_area(tmp_path, _square(0, 0, 90), _square(20, 20, 50, clockwise=True),
+                        _square(35, 35, 20))
+    assert area == pytest.approx(90 * 90 - 50 * 50 + 20 * 20, rel=1e-3)
+
+
+def test_svg_island_inside_an_evenodd_hole_is_filled(tmp_path):
+    area = _filled_area(tmp_path, _square(0, 0, 90), _square(20, 20, 50), _square(35, 35, 20),
+                        fill_rule="evenodd")
+    assert area == pytest.approx(90 * 90 - 50 * 50 + 20 * 20, rel=1e-3)

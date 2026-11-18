@@ -688,6 +688,62 @@ def apply_transform(pt, M):
 
     return (r[0], r[1])
 
+def svg_fill_rule(attributes):
+    """``"nonzero"`` (SVG's default) or ``"evenodd"`` for a path's attributes."""
+    rule = attributes.get("fill-rule")
+    match = re.search(r"fill-rule\s*:\s*([a-z]+)", attributes.get("style", ""))
+    if match:
+        rule = match.group(1)
+    return "evenodd" if str(rule).strip().lower() == "evenodd" else "nonzero"
+
+
+def hole_points(boundaries, fill_rule="nonzero"):
+    """One point inside each unfilled region of a path of closed *boundaries*.
+
+    Follows SVG's fill rules rather than reading every clockwise boundary as
+    a hole (which dropped paths whose separate shapes were all drawn
+    clockwise): the region just inside each boundary -- outside the
+    boundaries nested directly in it -- has a winding number, the sum of the
+    directions (+1 / -1) of the boundaries around it. It is unfilled when
+    that number is zero (``nonzero``, the SVG default) or even
+    (``evenodd``). Each point is placed in that region, not in an island
+    nested inside it, so the triangulator removes exactly the unfilled part.
+    """
+    polygons, directions = [], []
+    for points in boundaries:
+        polygon = Polygon(points) if len(points) >= 3 else Polygon()
+        polygons.append(polygon if polygon.is_valid else polygon.buffer(0))
+        directions.append(1 if len(points) >= 3 and polygon_area(points) > 0 else -1)
+    inner_points = [None if polygon.is_empty else polygon.representative_point()
+                    for polygon in polygons]
+
+    def encloses(j, i):
+        return (j != i and not polygons[j].is_empty and
+                polygons[j].area > polygons[i].area and
+                polygons[j].contains(inner_points[i]))
+
+    depths = [None if polygon.is_empty else
+              sum(1 for j in range(len(polygons)) if encloses(j, i))
+              for i, polygon in enumerate(polygons)]
+    holes = []
+    for i, polygon in enumerate(polygons):
+        if depths[i] is None:
+            continue
+        region = polygon
+        for j in range(len(polygons)):
+            if depths[j] == depths[i] + 1 and encloses(i, j):
+                region = region.difference(polygons[j])
+        if region.is_empty:
+            continue
+        point = region.representative_point()
+        winding = sum(directions[j] for j in range(len(polygons))
+                      if not polygons[j].is_empty and polygons[j].contains(point))
+        unfilled = winding % 2 == 0 if fill_rule == "evenodd" else winding == 0
+        if unfilled:
+            holes.append(point.coords[0])
+    return holes
+
+
 def convert_svg_to_triangles(svg_path_str, invert_y=True, plot=False, normalize=True, triangulate_opts='pq10', arc_resolution=5):
 
     """Convert svg to triangles."""
@@ -785,21 +841,14 @@ def convert_svg_to_triangles(svg_path_str, invert_y=True, plot=False, normalize=
 
         vertices = []
         segments = []
-        holes = []
+        holes = hole_points([boundary["points"] for boundary in all_boundaries],
+                            svg_fill_rule(attributes[pnum]))
 
         vertex_offset = 0
 
         for boundary in all_boundaries:
 
             pts = boundary["points"]
-
-            polygon_area_value = polygon_area(pts)
-
-            if polygon_area_value < 0:
-                hole_pt = Polygon(pts).representative_point().coords[0]
-                holes.append(hole_pt)
-            else:
-                pass
 
             # add vertices
             vertices.extend(pts)
