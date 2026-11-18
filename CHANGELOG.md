@@ -4,6 +4,34 @@ All notable changes to MultiPanel will be documented here.
 
 ## Unreleased
 
+Fixes found while porting COMPTON to MultiPanel
+(`tests/test_host_integration.py` covers each):
+
+- `create_text_widget` is defined again: `SphereProbeWidget` (and the box
+  and lasso status text) raised `NameError`.
+- `VectorButtonWidget.GetCurrentRenderer()`: the spectrum, plot, plot
+  slices, plot sphere probe and export button callbacks raised
+  `AttributeError` on every click.
+- `plot_sphere_probe_callback` and `plot_slices_callback` no longer call
+  a missing `widget_utils` module.
+- `vtk_utils.add_volume` and `vtk_utils.load_gltf`, used by the box and
+  lasso reconstructions, the reconstruction refresh and the radiation
+  markers, which all raised `AttributeError`. `add_volume`'s
+  `clip_to_range` clips to `c_range` on a copy, and unknown render or
+  blend modes raise `ValueError`.
+- A collapsed layout panel keeps its header height when re-laid out (on a
+  window resize, or in an inactive dock tab) instead of drawing its
+  header over the next docked panel.
+- `MyInteractorStyle` (both classes) keeps itself alive from Python: with
+  VTK 9.4+ the garbage collector wiped its attributes while it was still
+  attached, so mouse moves raised `AttributeError: ... 'verbose'`.
+  `release()` lets a replaced style be collected.
+- SVG icon conversion follows SVG's fill rules (`nonzero`, or the path's
+  `fill-rule: evenodd`) instead of treating every clockwise boundary as
+  a hole, which dropped paths whose shapes were all drawn clockwise. The
+  `catalog`, `contour`, `contour_enabled` and `slicer` icons are
+  regenerated.
+
 ## 0.1.0 (2026-11-18)
 
 First public release, as MultiPanel (formerly VTK-2D-UI).
