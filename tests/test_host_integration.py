@@ -88,3 +88,44 @@ def test_export_button_callback_reaches_the_window(scene, monkeypatch):
                                 callback=specialists.export_button_callback)
     specialists.export_button_callback(button, None)
     assert exported == [window]
+
+
+# -- plot callbacks: helpers in specialists itself ----------------------------
+def _button(ren, iren, callback=None):
+    from multipanel._widget_support import disc_icon_polydata
+    from multipanel.controls import VectorButtonWidget
+    return VectorButtonWidget(ren, iren, input_data=disc_icon_polydata(),
+                              callback=callback or (lambda *_: None))
+
+
+def test_plot_sphere_probe_callback_finds_the_probe_mesh(scene, monkeypatch):
+    # It called widget_utils.return_actor, a module MultiPanel lacks.
+    import types
+    from multipanel import specialists
+    from vtkmodules.util.numpy_support import numpy_to_vtk
+
+    ren, _window, iren = scene
+    sphere = vtk.vtkSphereSource()
+    sphere.Update()
+    mesh = sphere.GetOutput()
+    mesh.GetPointData().SetScalars(numpy_to_vtk(np.arange(mesh.GetNumberOfPoints(), dtype=float)))
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputData(mesh)
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    actor.SetObjectName('widgets/sphere_widget_mesh')
+    ren.AddActor(actor)
+    plotted = []
+    monkeypatch.setattr(specialists, "_mpl_utils", lambda: types.SimpleNamespace(
+        plot_spherical_slice=lambda coords, values: plotted.append((coords.shape, values.shape))))
+
+    specialists.plot_sphere_probe_callback(_button(ren, iren), None)
+    assert plotted == [((mesh.GetNumberOfPoints(), 3), (mesh.GetNumberOfPoints(),))]
+
+
+def test_plot_slices_callback_without_slicers_is_a_no_op(scene):
+    # It called widget_utils.return_widget and raised NameError at once.
+    from multipanel import specialists
+
+    ren, _window, iren = scene
+    specialists.plot_slices_callback(_button(ren, iren), None, verbose=False)

@@ -3385,7 +3385,7 @@ def plot_sphere_probe_callback(widget, event):
     logger.debug("%s %s", "Sphere Button pressed!", value)
 
 
-    probed_points = widget_utils.return_actor(widget.renderer, actor_name='widgets/sphere_widget_mesh')
+    probed_points = return_actor(widget.renderer, actor_name='widgets/sphere_widget_mesh')
 
     if probed_points is None:
         logger.debug('No probed points found')
@@ -3731,7 +3731,7 @@ def plot_slices_callback(widget, event, verbose=True):
 
     for slice_axis in sliced_axes:
 
-        imageplane = widget_utils.return_widget(widget.renderer, widget_name='widgets/slice-%s' % slice_axis, verbose=False)
+        imageplane = return_widget(widget.renderer, widget_name='widgets/slice-%s' % slice_axis, verbose=False)
 
         if imageplane is None:
             if verbose:
