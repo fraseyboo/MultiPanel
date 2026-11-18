@@ -61,3 +61,30 @@ def test_sphere_probe_widget_builds_its_status_text(scene):
     probe = SphereProbeWidget(volume, ren, iren, sphere_radius=0.3, resolution=20,
                               enabled=False, sphere_center=(0.8, 0.8, 0.8))
     assert isinstance(probe.text_widget, vtk.vtkTextWidget)
+
+
+# -- VectorButtonWidget.GetCurrentRenderer ------------------------------------
+def test_vector_button_reports_its_renderer(scene):
+    # Panel button callbacks (spectrum, plot, plot slices, plot sphere
+    # probe, export) call widget.GetCurrentRenderer(), as vtkButtonWidget has.
+    from multipanel._widget_support import disc_icon_polydata
+    from multipanel.controls import VectorButtonWidget
+
+    ren, _window, iren = scene
+    button = VectorButtonWidget(ren, iren, input_data=disc_icon_polydata(),
+                                callback=lambda *_: None)
+    assert button.GetCurrentRenderer() is ren
+
+
+def test_export_button_callback_reaches_the_window(scene, monkeypatch):
+    from multipanel import specialists
+    from multipanel._widget_support import disc_icon_polydata
+    from multipanel.controls import VectorButtonWidget
+
+    ren, window, iren = scene
+    exported = []
+    monkeypatch.setattr(specialists, "write_gltf", exported.append)
+    button = VectorButtonWidget(ren, iren, input_data=disc_icon_polydata(),
+                                callback=specialists.export_button_callback)
+    specialists.export_button_callback(button, None)
+    assert exported == [window]

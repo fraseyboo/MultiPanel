@@ -5208,6 +5208,15 @@ class VectorButtonWidget(WidgetMixin):
         """
         return self.Representation
 
+    def GetCurrentRenderer(self):
+        """The renderer the button is drawn in.
+
+        Matches ``vtkAbstractWidget.GetCurrentRenderer`` so callbacks written
+        for the legacy ``vtkButtonWidget`` controls (e.g. the plotting and
+        export callbacks) work with vector buttons.
+        """
+        return self.renderer
+
     def Delete(self):
         """
         Deletes the SVG button widget from the renderer.
