@@ -2788,46 +2788,46 @@ def add_sphere_axes(renderer, source_actor=None, pole=None, max_radius=None, nam
     return axes
 
 
-# def create_text_widget(ren, iren, text='widget_text', object_name='text_widget',
-#                        color=[0,0,0], position_1=[0.2, 0.0], position_2=[0.8, 0.05],
-#                        enabled=True):
+def create_text_widget(ren, iren, text='widget_text', object_name='text_widget',
+                       color=(0, 0, 0), position_1=(0.2, 0.0), position_2=(0.8, 0.05),
+                       enabled=True):
+    """Add a non-selectable ``vtkTextWidget`` showing *text* to *ren*.
 
-#     textWidget = vtk.vtkTextWidget()
-#     textWidget.SetInteractor(iren)
-#     # textWidget.SetTextActor(ren)
+    ``position_1`` is the lower-left corner and ``position_2`` the size, both
+    in normalized display coordinates. The widget is registered in
+    ``ren.widgets`` under *object_name* and returned; the probe and selection
+    widgets use it for their status lines.
+    """
+    text_actor = vtk.vtkTextActor()
+    text_actor.SetInput(text)
+    text_actor.GetTextProperty().SetColor(color[0], color[1], color[2])
+    text_actor.GetTextProperty().SetJustificationToLeft()
+    text_actor.GetTextProperty().SetShadow(1)
+    text_actor.SetObjectName(object_name)
 
-#     self.text_actor = vtk.vtkTextActor()
-#     self.text_actor.SetInput(text)
-#     self.text_actor.GetTextProperty().SetColor(color[0], color[1], color[2])
-#     self.text_actor.GetTextProperty().SetJustificationToLeft()
-#     self.text_actor.GetTextProperty().SetShadow(1)
-#     self.text_actor.SetObjectName(object_name)
+    # The representation positions the text actor.
+    text_representation = vtk.vtkTextRepresentation()
+    text_representation.GetPositionCoordinate().SetCoordinateSystemToNormalizedDisplay()
+    text_representation.GetPositionCoordinate().SetValue(position_1[0], position_1[1])
+    text_representation.GetPosition2Coordinate().SetValue(position_2[0], position_2[1])
 
-#     # Create the text representation. Used for positioning the self.text_actor
-#     text_representation = vtk.vtkTextRepresentation()
-#     text_representation.GetPositionCoordinate().SetCoordinateSystemToNormalizedDisplay()
-#     text_representation.GetPositionCoordinate().SetValue(position_1[0], position_1[1])
-#     text_representation.GetPosition2Coordinate().SetValue(position_2[0], position_2[1])
+    text_widget = vtk.vtkTextWidget()
+    text_widget.SetInteractor(iren)
+    text_widget.SetRepresentation(text_representation)
+    text_widget.SelectableOff()
+    text_widget.SetTextActor(text_actor)
+    text_widget.SetObjectName(object_name)
 
+    if not hasattr(ren, 'widgets'):
+        ren.widgets = dict()
+    ren.widgets.update({object_name: text_widget})
 
-#     textWidget.SetRepresentation(text_representation)
+    if enabled:
+        text_widget.On()
+    else:
+        text_widget.Off()
 
-#     textWidget.SelectableOff()
-#     textWidget.SetTextActor(self.text_actor)
-#     textWidget.SetRepresentation(text_representation)
-#     textWidget.SetObjectName(object_name)
-
-
-#     if not hasattr(ren, 'widgets'):
-#         ren.widgets = dict()
-#     ren.widgets.update({object_name: textWidget})
-
-#     if enabled:
-#         textWidget.On()
-#     else:
-#         textWidget.Off()
-
-#     return textWidget
+    return text_widget
 
 
 class SplineWidget(vtk.vtkSplineWidget, WidgetMixin):
