@@ -3008,7 +3008,11 @@ class WidgetPanel(WidgetMixin):
         new_panel_bounds = None
 
         new_panel_bounds = self.determine_panel_bounds()
-        if self.contentLayout() is not None and new_panel_bounds is not None:
+        # A collapsed panel keeps its header-only bounds: growing them to the
+        # layout's height (e.g. on a window resize) drew the header controls
+        # over the next docked panel.
+        if self.contentLayout() is not None and new_panel_bounds is not None \
+                and not self._panel_collapsed:
             new_panel_bounds = self._bounds_with_layout(new_panel_bounds)
 
         self.redraw_panel_background(new_panel_bounds, buffer=self.buffer)

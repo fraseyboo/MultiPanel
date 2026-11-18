@@ -211,3 +211,51 @@ def test_load_gltf_reader_returns_one_actor(tmp_path):
     assert actor.GetMapper().GetInput().GetNumberOfPoints() > 0
     with pytest.raises(ValueError):
         vtk_utils.load_gltf(path, import_method='vtkGLTFImporter')    # needs a render window
+
+
+# -- collapsed layout panels keep their header-only bounds --------------------
+def _collapsed_layout_panel(ren, iren, collapsed=True):
+    from multipanel.containers import WidgetPanel
+    from multipanel.layouts import VBoxLayout
+    from multipanel.standard import Label
+
+    panel = WidgetPanel(ren, iren, {}, panel_title='Collapsed', keep_aspect_ratio=False,
+                        panel_position=(0.7, 0.9), panel_width=0.2, collapsed=collapsed)
+    column = VBoxLayout()
+    for index in range(6):
+        column.addWidget(Label(ren, iren, f'row {index}'))
+    panel.setLayout(column)
+    return panel
+
+
+def test_collapsed_layout_panel_keeps_header_bounds_on_relayout(scene):
+    # update_layout (run on window resizes, and for panels in inactive dock
+    # tabs) grew a collapsed layout panel to its full layout height, drawing
+    # its title and collapse button over the next docked panel.
+    ren, window, iren = scene
+    expanded = _collapsed_layout_panel(ren, iren, collapsed=False)
+    collapsed = _collapsed_layout_panel(ren, iren, collapsed=True)
+    window.Render()
+    for panel in (expanded, collapsed):
+        panel.update_layout(render=False)
+    height = lambda panel: panel.GetBounds()[3] - panel.GetBounds()[2]
+    assert height(collapsed) < 0.5 * height(expanded)
+    title = collapsed.added_widgets['panel_title'].GetBounds()
+    top = collapsed.GetBounds()[3]
+    assert top - title[3] < height(collapsed)          # title stays in the header band
+
+
+def test_collapsed_layout_panel_survives_a_resize_in_a_dock(scene):
+    from multipanel.containers import DockPane, WidgetPanel
+
+    ren, window, iren = scene
+    dock = DockPane(ren, iren, side='right', width=0.2)
+    panel = _collapsed_layout_panel(ren, iren)
+    below = WidgetPanel(ren, iren, {}, panel_title='Below', keep_aspect_ratio=False)
+    dock.add_panel(panel)
+    dock.add_panel(below)
+    window.Render()
+    window.SetSize(1000, 700)
+    iren.InvokeEvent('ConfigureEvent')
+    window.Render()
+    assert below.GetBounds()[3] <= panel.GetBounds()[2] + 1e-6
