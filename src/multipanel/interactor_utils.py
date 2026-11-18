@@ -7,6 +7,29 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# Python interactor styles are kept alive from Python on purpose. With VTK
+# >= 9.4 (seen on 9.7) a style that stores scene objects (camera, renderer,
+# window) and observes itself with its own bound methods has its Python
+# attributes wiped by the cyclic garbage collector while the C++ style stays
+# attached to the interactor -- every later event then raises, e.g.
+# "'MyInteractorStyle' object has no attribute 'verbose'". Observers holding
+# only a weak reference keep the attributes but stop firing once the
+# wrapper is collected, so the styles hold a strong reference here instead;
+# ``release()`` drops it when a style is replaced.
+_LIVE_INTERACTOR_STYLES = set()
+
+
+def keep_interactor_style_alive(style):
+    """Hold a strong Python reference to *style* (see above) and return it."""
+    _LIVE_INTERACTOR_STYLES.add(style)
+    return style
+
+
+def release_interactor_style(style):
+    """Drop the reference :func:`keep_interactor_style_alive` holds."""
+    _LIVE_INTERACTOR_STYLES.discard(style)
+
+
 class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
     """[VTK class definitions to allow for more natural camera movement (trackpad style)
         and keybindings for extra functionality (camera movement, printscreens etc.)]
@@ -31,6 +54,7 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
 
         self.verbose = False
         self.auto_up = True
+        keep_interactor_style_alive(self)
         self.AddObserver("LeftButtonPressEvent", self.left_button_press_event)
         self.AddObserver("LeftButtonReleaseEvent", self.left_button_release_event)
         self.AddObserver("MiddleButtonPressEvent", self.middle_button_press_event)
@@ -42,6 +66,10 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
  
         # self.AddObserver('AnnotationChangedEvent', selectionCallback)
         # self.AutoAdjustCameraClippingRange(True)
+
+    def release(self):
+        """Let the style be garbage collected once it is no longer in use."""
+        release_interactor_style(self)
 
     def camera_zoom_in(self, step=2):
         """Execute the camera zoom in operation."""

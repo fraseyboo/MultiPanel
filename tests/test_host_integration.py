@@ -259,3 +259,51 @@ def test_collapsed_layout_panel_survives_a_resize_in_a_dock(scene):
     iren.InvokeEvent('ConfigureEvent')
     window.Render()
     assert below.GetBounds()[3] <= panel.GetBounds()[2] + 1e-6
+
+
+# -- interactor styles survive garbage collection -------------------------------
+def _style_interactor(style_class, style_args):
+    ren = vtk.vtkRenderer()
+    window = vtk.vtkRenderWindow()
+    window.SetOffScreenRendering(1)
+    window.AddRenderer(ren)
+    iren = vtk.vtkRenderWindowInteractor()
+    iren.SetRenderWindow(window)
+    iren.Initialize()
+    # As create_renderer does: no Python reference to the style is kept.
+    iren.SetInteractorStyle(style_class(*style_args(iren, ren, window)))
+    return iren
+
+
+def _assert_style_survives_gc(iren, capfd):
+    gc.collect()
+    gc.collect()
+    style = iren.GetInteractorStyle()
+    assert hasattr(style, "verbose")      # VTK 9.7 wiped the Python attributes
+    capfd.readouterr()
+    iren.SetEventPosition(20, 20)
+    iren.InvokeEvent("MouseMoveEvent")
+    iren.InvokeEvent("LeftButtonPressEvent")
+    iren.InvokeEvent("LeftButtonReleaseEvent")
+    assert "Traceback" not in capfd.readouterr().err   # handlers still run
+    return style
+
+
+def test_interactor_utils_style_survives_gc(capfd):
+    from multipanel import interactor_utils
+
+    iren = _style_interactor(interactor_utils.MyInteractorStyle,
+                             lambda iren, ren, window: (iren, ren.GetActiveCamera(), window, ren))
+    style = _assert_style_survives_gc(iren, capfd)
+    assert style in interactor_utils._LIVE_INTERACTOR_STYLES
+    style.release()
+    assert style not in interactor_utils._LIVE_INTERACTOR_STYLES
+
+
+def test_vtk_utils_style_survives_gc(capfd):
+    pytest.importorskip("sklearn")
+    from multipanel import vtk_utils
+
+    iren = _style_interactor(vtk_utils.MyInteractorStyle,
+                             lambda iren, ren, window: (iren, ren.GetActiveCamera(), ren))
+    _assert_style_survives_gc(iren, capfd)

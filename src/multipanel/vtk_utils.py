@@ -258,6 +258,8 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
 
         self.verbose = False
         self.auto_up = True
+        # Kept alive from Python (see interactor_utils.keep_interactor_style_alive).
+        interactor_utils.keep_interactor_style_alive(self)
         self.AddObserver("MiddleButtonPressEvent", self.middle_button_press_event)
         self.AddObserver("MiddleButtonReleaseEvent", self.middle_button_release_event)
         self.AddObserver("LeftButtonPressEvent", self.left_button_press_event)
@@ -265,6 +267,10 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.AddObserver("KeyPressEvent", self.keyPressEvent)
 
         # self.AutoAdjustCameraClippingRange(True)
+
+    def release(self):
+        """Let the style be garbage collected once it is no longer in use."""
+        interactor_utils.release_interactor_style(self)
 
     def camera_zoom_in(self, step=2):
 
