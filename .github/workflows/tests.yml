@@ -35,6 +35,9 @@ jobs:
 
   test-macos:
     runs-on: macos-latest
+    # Temporarily non-blocking: the hosted macOS runners fail intermittently
+    # (the same commit both passes and fails). Remove once they are stable.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
