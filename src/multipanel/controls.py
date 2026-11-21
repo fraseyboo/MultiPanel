@@ -1469,14 +1469,15 @@ class VectorPanelBackground(WidgetMixin):
                         decor_pd.GetCellData().GetScalars(),
                         vtk.VTK_SCALAR_MODE_USE_CELL_DATA)
 
-                context2d.ApplyPen(pen)
-                context2d.DrawPolyData(
-                    0,
-                    0,
-                    panel.border_pd,
-                    panel.border_pd.GetCellData().GetScalars(),
-                    vtk.VTK_SCALAR_MODE_USE_CELL_DATA,
-                )
+                if panel.border_width > 0:
+                    context2d.ApplyPen(pen)
+                    context2d.DrawPolyData(
+                        0,
+                        0,
+                        panel.border_pd,
+                        panel.border_pd.GetCellData().GetScalars(),
+                        vtk.VTK_SCALAR_MODE_USE_CELL_DATA,
+                    )
 
                 return True
 

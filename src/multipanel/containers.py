@@ -2477,6 +2477,7 @@ class WidgetPanel(WidgetMixin):
                         icon_name=icon_names,
                         input_data=shapes,
                         callback=widget_info["callback"],
+                        interactive=widget_info.get("interactive", True),
                         bounds=widget_bounds,
                         color=button_color,
                         initial_state=widget_info.get("state", 0),
@@ -2485,7 +2486,8 @@ class WidgetPanel(WidgetMixin):
                     )
                     # Icon-sized buttons get a rounded-square tile; small
                     # inline controls (locks, steppers) stay bare.
-                    if min(widget_info.get("button_size", (0, 0))) >= 0.2:
+                    if (button.interactive and
+                            min(widget_info.get("button_size", (0, 0))) >= 0.2):
                         button.background_style = "rounded"
                     # button.equal_aspect_ratio = True
 
@@ -3913,6 +3915,7 @@ class DockPane(WidgetMixin):
     def add_tab(self, name, icon, tooltip=None, align="top", keep_color=False):
         """Add a tab to the vertical tab bar; panels join it via add_panel.
 
+        ``icon`` may be a library icon name or an explicit vector-data path.
         ``align="bottom"`` pins the tab to the bottom of the bar (as VS Code
         does for settings). ``keep_color`` shows the icon in colour even when
         inactive -- for status tabs whose icon carries meaning."""
@@ -3928,10 +3931,12 @@ class DockPane(WidgetMixin):
             self.tab_bar.well_color = accent
             # Tabs replace the corner collapse chevron.
             self.collapse_button.SetEnabled(False)
-        icon_path = os.path.join(ICON_ROOT, "vtk_icons", f"{icon}.vtk")
+        icon_path = (os.fspath(icon) if os.path.isfile(os.fspath(icon)) else
+                     os.path.join(ICON_ROOT, "vtk_icons", f"{icon}.vtk"))
+        icon_name = os.path.splitext(os.path.basename(icon_path))[0]
         button = VectorButtonWidget(
             self.renderer, self.interactor, input_data=[icon_path, icon_path],
-            icon_name=[icon, icon],
+            icon_name=[icon_name, icon_name],
             grayscale_states=[not keep_color, False],
             grayscale_brightness=0.35, initial_state=0,
             callback=lambda caller, event, tab=name: self.select_tab(tab),
@@ -3959,11 +3964,13 @@ class DockPane(WidgetMixin):
             if tab["icon"] == icon and tooltip is None:
                 return
             tab["icon"] = icon
-            icon_path = os.path.join(ICON_ROOT, "vtk_icons", f"{icon}.vtk")
+            icon_path = (os.fspath(icon) if os.path.isfile(os.fspath(icon)) else
+                         os.path.join(ICON_ROOT, "vtk_icons", f"{icon}.vtk"))
+            icon_name = os.path.splitext(os.path.basename(icon_path))[0]
             button = tab["button"]
             button.input_states = [icon_path, icon_path]
             button.input_data = icon_path
-            button.icon_name = [icon, icon]
+            button.icon_name = [icon_name, icon_name]
             if tooltip is not None:
                 tab["tooltip"] = tooltip
                 button.hover_text = tooltip
